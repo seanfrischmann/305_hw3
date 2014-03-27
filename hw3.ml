@@ -12,7 +12,9 @@ datatype exp =
     Boolean of bool
   | Number of int
   | String of string
-  | Error | Quit | Add | Sub | Mul | Div | Rem | Pop | Exc | Neg;
+  | Name of string
+  | Error | Quit | Add | Sub | Mul | Div | Rem | Pop | Exc | Neg
+  | And | Or | Not | Equal | LessThan;
 
 (****************************************************************************
  UTILITY FUNCTIONS 
@@ -26,6 +28,7 @@ fun expression2string(Boolean(true)) = ":true:"
   | expression2string(Number(X)) = if (X<0) then "-"^Int.toString(~X) else Int.toString(X)
   | expression2string(Error) = ":error:"
   | expression2string(String(X)) = "\""^X^"\""
+  | expression2string(Name(X)) = X
   | expression2string(_) = "?? should not happen ??"
   ;
 
@@ -42,6 +45,14 @@ fun quotient(a2,a1) =
 (* Computes remainder according to rules of the language *)
 fun remainder(a2,a1) = a2 - a1 * quotient(a2,a1);
 
+(* Computes primitive boolean functions*)
+fun booleanFunctions(And, a2, a1) = if (a2 = a1) then true else false
+   | booleanFunctions(Or, a2, a1) = if (a2 = a1) then false else true
+   | booleanFunctions(Not, a2, a1) = if (a1 = true) then false else true;
+
+(* Computes primitive relational operators*)
+fun relationalOperators(Equal, a2, a1) = if (a2 = a1) then true else false
+   | relationalOperators(LessThan, a2, a1) = if (a2 < a1) then true else false
 
 (****************************************************************************
  MAIN EVALUATOR FUNCTIONS 
@@ -55,6 +66,7 @@ fun
 
   (* UNARY OPERATORS *)
   | apply(Neg,Number(a)::rest) = (Number(~a),rest)
+  | apply(Not,Boolean(a1)::rest) = (Boolean(booleanFunctions(Not,true,a1)),rest)
   | apply(_,[x]) = (Error,[x])
 
   (* BINARY OPERATORS *)
@@ -63,6 +75,10 @@ fun
   | apply(Mul,Number(a1)::Number(a2)::rest) = (Number(a2*a1),rest)
   | apply(Div,Number(a1)::Number(a2)::rest) = (Number(quotient(a2,a1)),rest)
   | apply(Rem,Number(a1)::Number(a2)::rest) = (Number(remainder(a2,a1)),rest)
+  | apply(And,Boolean(a1)::Boolean(a2)::rest) = (Boolean(booleanFunctions(And,a2,a1)),rest)
+  | apply(Or,Boolean(a1)::Boolean(a2)::rest) = (Boolean(booleanFunctions(Or,a2,a1)),rest)
+  | apply(Equal,Number(a1)::Number(a2)::rest) = (Boolean(relationalOperators(Equal,a2,a1)),rest)
+  | apply(LessThan,Number(a1)::Number(a2)::rest) = (Boolean(relationalOperators(LessThan,a2,a1)),rest)
   | apply(_,stack) = (Error,stack)
   ;
 
@@ -78,6 +94,7 @@ fun stackOps(Pop, x::stack) = stack
 fun eval(Boolean(x), stack) = Boolean(x)::stack
   | eval(Number(x), stack)  = Number(x)::stack
   | eval(String(x), stack)  = String(x)::stack
+  | eval(Name(x), stack)  = Name(x)::stack
   | eval(Quit, stack)       = Quit::stack
   | eval(Pop, x::stack)     = stack
   | eval(Exc, x::y::stack)     = y::x::stack
@@ -121,13 +138,15 @@ fun parseBoolean(x, inStr) =
 
 (* Function to parse a string  *)
 
-fun parseString(x, inStr) = 
+fun parseString(x, inStr, y) = 
     case (TextIO.input1(inStr)) of
 	NONE => SOME(Error)
       | SOME(ch) => 
-       if (ch = #"\"") then parseString(x, inStr)
-       else if (Char.isAlpha(ch)) then parseString(x^Char.toString(ch), inStr)
-       else if (Char.isSpace(ch)) then SOME(String(x))
+       if (ch = #"\"") then parseString(x, inStr, (y+1))
+       else if (Char.isAlpha(ch)) then parseString(x^Char.toString(ch), inStr, y)
+       else if (Char.isSpace(ch)) then
+            if (y < 1) then parseString(x^Char.toString(ch), inStr, y)
+            else SOME(String(x))
        else SOME(Error);
 
 (* Function to parse an error *)
@@ -170,8 +189,13 @@ fun parsePrimitive(x, inStr) =
 	       else if (x = "pop") then SOME(Pop)
 	       else if (x = "exc") then SOME(Exc)
 	       else if (x = "neg") then SOME(Neg)
+	       else if (x = "and") then SOME(And)
+	       else if (x = "or") then SOME(Or)
+	       else if (x = "not") then SOME(Not)
+	       else if (x = "equal") then SOME(Equal)
+	       else if (x = "lessThan") then SOME(LessThan)
                else if (x = "quit") then SOME(Quit)
-	       else SOME(Error)
+	       else SOME(Name(x))
        else SOME(Error);
 
 (* A recursive helper function for the parse function, which reads
@@ -183,7 +207,7 @@ fun parseHelper(NONE, inStr) = NONE
       if (Char.isDigit(ch)) then parseNumber(ord(ch)-ord(#"0"),inStr)
  else if (ch = #"-")        then parseNegativeNumber(inStr)
  else if (ch = #":")        then parseBooleanOrError(":", inStr)
- else if (ch = #"\"")        then parseString("", inStr)
+ else if (ch = #"\"")        then parseString("", inStr, 0)
  else if (Char.isAlpha(ch)) then parsePrimitive(Char.toString(ch), inStr)
  else if (Char.isSpace(ch)) then parseHelper(TextIO.input1(inStr), inStr)
  else NONE;
