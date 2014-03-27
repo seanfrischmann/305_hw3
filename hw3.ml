@@ -11,7 +11,7 @@
 datatype exp =
     Boolean of bool
   | Number of int
-  | Error | Quit | Add | Sub | Mul | Div | Rem | Pop | Exc | Neg;
+  | Error | Quit | Add | Sub | Mul | Div | Rem | Pop | Exc | Neg | String;
 
 (****************************************************************************
  UTILITY FUNCTIONS 
@@ -24,6 +24,7 @@ fun expression2string(Boolean(true)) = ":true:"
   | expression2string(Boolean(false)) = ":false:"
   | expression2string(Number(X)) = if (X<0) then "-"^Int.toString(~X) else Int.toString(X)
   | expression2string(Error) = ":error:"
+  | expression2string(String(X)) = "\""^X^"\"";
   | expression2string(_) = "?? should not happen ??"
   ;
 
@@ -116,6 +117,18 @@ fun parseBoolean(x, inStr) =
 	       else SOME(Error)
        else SOME(Error);
 
+(* Function to parse a string  *)
+
+fun parseString(x, inStr) = 
+    case (TextIO.input1(inStr)) of
+	NONE => SOME(Error)
+      | SOME(ch) => 
+	    if (ch = #"\"") then parseBoolean(x, inStr)
+       else if (Char.isAlpha(ch)) then parseBoolean(x^Char.toString(ch)
+       else if (Char.isSpace(ch))
+          then SOME(String(x))
+       else SOME(Error);
+
 (* Function to parse an error *)
 
 fun parseError(x, inStr) = 
@@ -169,6 +182,7 @@ fun parseHelper(NONE, inStr) = NONE
       if (Char.isDigit(ch)) then parseNumber(ord(ch)-ord(#"0"),inStr)
  else if (ch = #"-")        then parseNegativeNumber(inStr)
  else if (ch = #":")        then parseBooleanOrError(":", inStr)
+ else if (ch = #"\"")        then parseString("\"", inStr)
  else if (Char.isAlpha(ch)) then parsePrimitive(Char.toString(ch), inStr)
  else if (Char.isSpace(ch)) then parseHelper(TextIO.input1(inStr), inStr)
  else NONE;
