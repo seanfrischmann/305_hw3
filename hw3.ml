@@ -15,7 +15,7 @@ datatype exp =
   | String of string
   | Name of string
   | Error | Quit | Add | Sub | Mul | Div | Rem | Pop | Exc | Neg
-  | And | Or | Not | Equal | LessThan | If;
+  | And | Or | Not | Equal | LessThan | If | Bind;
 
 (****************************************************************************
  UTILITY FUNCTIONS 
@@ -96,23 +96,36 @@ fun stackOps(Pop, x::stack) = stack
   | stackOps(_,stack) = Error::stack
   ;
 
-(* Evaluates an expression *)
-
-fun eval(Boolean(x), stack, bindings) = (Boolean(x)::stack, bindings)
-  | eval(Number(x), stack, bindings)  = (Number(x)::stack, bindings)
-  | eval(String(x), stack, bindings)  = (String(x)::stack, bindings)
-  | eval(Name(x), stack, bindings)  = (Name(x)::stack, bindings)
-  | eval(Quit, stack, bindings)       = (Quit::stack, bindings)
-  | eval(Pop, x::stack, bindings)     = (stack, bindings)
-  | eval(Exc, x::y::stack, bindings)     = (y::x::stack, bindings)
-  | eval(Error, stack, bindings)      = (Error::stack, bindings)
-  | eval(expr, stack, bindings) = (
-      ( let
+(* Help Evaluates an expression *)
+fun evalHelper(Boolean(x),stack) = Boolean(x)::stack
+  | evalHelper(Number(x),stack) = Number(x)::stack
+  | evalHelper(String(x),stack) = String(x)::stack
+  | evalHelper(Name(x),stack) = Name(x)::stack
+  | evalHelper(Quit,stack) = Quit::stack
+  | evalHelper(Pop,x::stack) = stack
+  | evalHelper(Exc,x::y::stack) = y::x::stack
+  | evalHelper(Error,stack) = Error::stack
+  | evalHelper(expr, stack) = let
             val (v,s) = apply(expr, stack)
       in
             v::s
-      end
-      ), bindings)
+      end;
+
+(* Evaluates Bind*)
+      fun bindFunction(a1::a2::stack, bindings) = ((a1::stack)::([a2]::[a1]::bindings));
+
+(* Evaluates an expression *)
+
+fun eval(Boolean(x), environment) = ((evalHelper(Boolean(x),hd environment))::(tl environment))
+  | eval(Number(x), environment)  = ((evalHelper(Number(x),hd environment))::(tl environment))
+  | eval(String(x), environment)  = ((evalHelper(String(x),hd environment))::(tl environment))
+  | eval(Name(x), environment)  = ((evalHelper(Name(x),hd environment))::(tl environment))
+  | eval(Quit, environment)       = ((evalHelper(Quit,hd environment))::(tl environment))
+  | eval(Pop, environment)     = ((evalHelper(Pop,hd environment))::(tl environment))
+  | eval(Exc, environment )     = ((evalHelper(Exc,hd environment))::(tl environment))
+  | eval(Error, environment)      = ((evalHelper(Error,hd environment))::(tl environment))
+  | eval(Bind, stack::bindings::rest)      = ((bindFunction(stack, bindings))::rest)
+  | eval(expr, environment ) = ((evalHelper(expr,hd environment))::(tl environment))
   ;
 
 (* Functions to parse a number *)
@@ -205,6 +218,7 @@ fun parsePrimitive(x, inStr) =
 	       else if (x = "equal") then SOME(Equal)
 	       else if (x = "lessThan") then SOME(LessThan)
 	       else if (x = "if") then SOME(If)
+	       else if (x = "bind") then SOME(Bind)
                else if (x = "quit") then SOME(Quit)
 	       else SOME(Name(x))
        else SOME(Error);
@@ -223,20 +237,20 @@ fun parseHelper(NONE, inStr) = NONE
  else if (Char.isSpace(ch)) then parseHelper(TextIO.input1(inStr), inStr)
  else NONE;
 
-fun maybePrintPrompt(stack::bindings, SOME(0)) = ( printStack(stack); TextIO.print("repl> ") )
-  | maybePrintPrompt(environments, SOME(_)) = ();
+fun maybePrintPrompt(stack, SOME(0)) = ( printStack(stack); TextIO.print("repl> ") )
+  | maybePrintPrompt(stack, SOME(_)) = ();
 
 (* Function to parse the next expression on the input stream. *)      
 fun parse(inStr) = parseHelper(TextIO.input1(inStr), inStr);
 
-fun replHelper(inStr, stack, bindings) =
+fun replHelper(inStr, environment) =
 (
-    maybePrintPrompt(stack, TextIO.canInput(inStr,1));
+    maybePrintPrompt(hd environment, TextIO.canInput(inStr,1));
     case (parse(inStr)) of 
-       NONE => replHelper(inStr, stack, bindings)
+       NONE => replHelper(inStr, environment)
      | SOME(Quit) => () 
-     | SOME(expression) => replHelper(inStr,eval(expression, stack, bindings)) 
+     | SOME(expression) => replHelper(inStr,eval(expression, environment)) 
 );
 
 
-fun repl() = replHelper(TextIO.stdIn, [], []);
+fun repl() = replHelper(TextIO.stdIn, [[],[]]);
