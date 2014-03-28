@@ -111,20 +111,48 @@ fun evalHelper(Boolean(x),stack) = Boolean(x)::stack
             v::s
       end;
 
+(*Helps sort out stack after bind*)
+fun bindStackHelper(a1, stack) = a1::stack;
+
+(*Helps sort out bindings*)
+fun bindHelper(a1, a2, bindings) = a2::a1::bindings;
+
+fun existCheck(a2, []) = false
+  | existCheck(a2, x::bindings) = if (a2 = x) then true else existCheck(a2, bindings)
+;
+
+fun existNameCheck(a2, []) = false
+  | existNameCheck(Name(a2), x::bindings) = if (a2 = x) then true else existNameCheck(Name(a2), bindings)
+;
+
+fun nameCheck(a1::Name(a2)::stack) = true
+  | nameCheck(_) = false
+;
+
+fun  findValue(Name(a2), x::y::bindings) = if (Name(a2) = x) then y else findValue(Name(a2), bindings);
+
 (* Evaluates Bind*)
-      fun bindFunction(a1::a2::stack, bindings) = ((a1::stack)::([a2]::[a1]::bindings));
+fun bindFunction(a1::a2::stack, bindings::rest) = 
+     if existCheck(a2, bindings)
+         then ((Error::stack)::bindings::rest)
+     else ((bindStackHelper(a1,stack))::(bindHelper(a1,a2,bindings)::rest))
+;
 
 (* Evaluates an expression *)
 
 fun eval(Boolean(x), environment) = ((evalHelper(Boolean(x),hd environment))::(tl environment))
   | eval(Number(x), environment)  = ((evalHelper(Number(x),hd environment))::(tl environment))
   | eval(String(x), environment)  = ((evalHelper(String(x),hd environment))::(tl environment))
-  | eval(Name(x), environment)  = ((evalHelper(Name(x),hd environment))::(tl environment))
+  | eval(Name(x), stack::bindings::rest)  = 
+      if existCheck(Name(x),bindings) then ((evalHelper(findValue(Name(x),bindings),stack))::(bindings::rest))
+      else ((evalHelper(Name(x), stack))::(bindings::rest))
   | eval(Quit, environment)       = ((evalHelper(Quit,hd environment))::(tl environment))
   | eval(Pop, environment)     = ((evalHelper(Pop,hd environment))::(tl environment))
   | eval(Exc, environment )     = ((evalHelper(Exc,hd environment))::(tl environment))
   | eval(Error, environment)      = ((evalHelper(Error,hd environment))::(tl environment))
-  | eval(Bind, stack::bindings::rest)      = ((bindFunction(stack, bindings))::rest)
+  | eval(Bind, stack::bindings)      = 
+      if nameCheck(stack) then (bindFunction(stack, bindings))
+      else ((evalHelper(Error, stack))::(bindings))
   | eval(expr, environment ) = ((evalHelper(expr,hd environment))::(tl environment))
   ;
 
