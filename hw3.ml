@@ -1,6 +1,7 @@
 (* CSE305 Spring 2014
  * A possible solution to HW2, expressed in Standard ML
  * Author: Carl Alphonce
+ * Updated by: Sean Frischmann
  *)
 
 (****************************************************************************
@@ -14,7 +15,7 @@ datatype exp =
   | String of string
   | Name of string
   | Error | Quit | Add | Sub | Mul | Div | Rem | Pop | Exc | Neg
-  | And | Or | Not | Equal | LessThan;
+  | And | Or | Not | Equal | LessThan | If;
 
 (****************************************************************************
  UTILITY FUNCTIONS 
@@ -54,6 +55,11 @@ fun booleanFunctions(And, a2, a1) = if (a2 = a1) then true else false
 fun relationalOperators(Equal, a2, a1) = if (a2 = a1) then true else false
    | relationalOperators(LessThan, a2, a1) = if (a2 < a1) then true else false
 
+(* Computes primitive if function*)
+fun ifFunction(a1,a2,a3) = 
+    if (a1 = true) then a3
+    else a2;
+
 (****************************************************************************
  MAIN EVALUATOR FUNCTIONS 
  ****************************************************************************)
@@ -67,18 +73,19 @@ fun
   (* UNARY OPERATORS *)
   | apply(Neg,Number(a)::rest) = (Number(~a),rest)
   | apply(Not,Boolean(a1)::rest) = (Boolean(booleanFunctions(Not,true,a1)),rest)
-  | apply(_,[x]) = (Error,[x])
+  | apply(_,[x]) = (Error, [x])
 
   (* BINARY OPERATORS *)
   | apply(Add,Number(a1)::Number(a2)::rest) = (Number(a2+a1),rest)
   | apply(Sub,Number(a1)::Number(a2)::rest) = (Number(a2-a1),rest)
-  | apply(Mul,Number(a1)::Number(a2)::rest) = (Number(a2*a1),rest)
+  | apply(Mul,Number(a1)::Number(a2)::rest) = (Number(a2*a1), rest)
   | apply(Div,Number(a1)::Number(a2)::rest) = (Number(quotient(a2,a1)),rest)
   | apply(Rem,Number(a1)::Number(a2)::rest) = (Number(remainder(a2,a1)),rest)
   | apply(And,Boolean(a1)::Boolean(a2)::rest) = (Boolean(booleanFunctions(And,a2,a1)),rest)
   | apply(Or,Boolean(a1)::Boolean(a2)::rest) = (Boolean(booleanFunctions(Or,a2,a1)),rest)
   | apply(Equal,Number(a1)::Number(a2)::rest) = (Boolean(relationalOperators(Equal,a2,a1)),rest)
   | apply(LessThan,Number(a1)::Number(a2)::rest) = (Boolean(relationalOperators(LessThan,a2,a1)),rest)
+  | apply(If,Boolean(a1)::a2::a3::rest) = (ifFunction(a1,a2,a3),rest)
   | apply(_,stack) = (Error,stack)
   ;
 
@@ -91,19 +98,22 @@ fun stackOps(Pop, x::stack) = stack
 
 (* Evaluates an expression *)
 
-fun eval(Boolean(x), stack) = Boolean(x)::stack
-  | eval(Number(x), stack)  = Number(x)::stack
-  | eval(String(x), stack)  = String(x)::stack
-  | eval(Name(x), stack)  = Name(x)::stack
-  | eval(Quit, stack)       = Quit::stack
-  | eval(Pop, x::stack)     = stack
-  | eval(Exc, x::y::stack)     = y::x::stack
-  | eval(Error, stack)      = Error::stack
-  | eval(expr, stack) = let
-        val (v,s) = apply(expr, stack)
-    in
-        v::s
-    end;
+fun eval(Boolean(x), stack, bindings) = (Boolean(x)::stack, bindings)
+  | eval(Number(x), stack, bindings)  = (Number(x)::stack, bindings)
+  | eval(String(x), stack, bindings)  = (String(x)::stack, bindings)
+  | eval(Name(x), stack, bindings)  = (Name(x)::stack, bindings)
+  | eval(Quit, stack, bindings)       = (Quit::stack, bindings)
+  | eval(Pop, x::stack, bindings)     = (stack, bindings)
+  | eval(Exc, x::y::stack, bindings)     = (y::x::stack, bindings)
+  | eval(Error, stack, bindings)      = (Error::stack, bindings)
+  | eval(expr, stack, bindings) = (
+      ( let
+            val (v,s) = apply(expr, stack)
+      in
+            v::s
+      end
+      ), bindings)
+  ;
 
 (* Functions to parse a number *)
 
@@ -194,6 +204,7 @@ fun parsePrimitive(x, inStr) =
 	       else if (x = "not") then SOME(Not)
 	       else if (x = "equal") then SOME(Equal)
 	       else if (x = "lessThan") then SOME(LessThan)
+	       else if (x = "if") then SOME(If)
                else if (x = "quit") then SOME(Quit)
 	       else SOME(Name(x))
        else SOME(Error);
@@ -212,20 +223,20 @@ fun parseHelper(NONE, inStr) = NONE
  else if (Char.isSpace(ch)) then parseHelper(TextIO.input1(inStr), inStr)
  else NONE;
 
-fun maybePrintPrompt(stack, SOME(0)) = ( printStack(stack); TextIO.print("repl> ") )
-  | maybePrintPrompt(stack, SOME(_)) = ();
+fun maybePrintPrompt(stack::bindings, SOME(0)) = ( printStack(stack); TextIO.print("repl> ") )
+  | maybePrintPrompt(environments, SOME(_)) = ();
 
 (* Function to parse the next expression on the input stream. *)      
 fun parse(inStr) = parseHelper(TextIO.input1(inStr), inStr);
 
-fun replHelper(inStr, stack) =
+fun replHelper(inStr, stack, bindings) =
 (
     maybePrintPrompt(stack, TextIO.canInput(inStr,1));
     case (parse(inStr)) of 
-       NONE => replHelper(inStr, stack)
+       NONE => replHelper(inStr, stack, bindings)
      | SOME(Quit) => () 
-     | SOME(expression) => replHelper(inStr,eval(expression, stack)) 
+     | SOME(expression) => replHelper(inStr,eval(expression, stack, bindings)) 
 );
 
 
-fun repl() = replHelper(TextIO.stdIn, []);
+fun repl() = replHelper(TextIO.stdIn, [], []);
