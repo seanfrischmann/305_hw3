@@ -120,7 +120,7 @@ fun bindBindingsHelper(a2, bindings) = a2::bindings;
 fun bindValuesHelper(a1, values) = a1::values;
 
 fun existCheck(a2, []) = false
-  | existCheck(Name(a2), x::bindings) = if (Name(a2) = x) then true else existCheck(Name(a2), bindings)
+  | existCheck(Name(a2), Name(x)::bindings) = if (Name(a2) = Name(x)) then true else existCheck(Name(a2), bindings)
   | existCheck(a2, x::bindings) = if (a2 = x) then true else existCheck(a2, bindings)
 ;
 
@@ -130,12 +130,9 @@ fun nameCheck(a1::Name(a2)::stack) = true
 
 fun checkIfName(Name(a1)) = true;
 
-fun findValue(Name(a2), x::bindings, Name(y)::values, cleanBind, cleanVal) = 
-    if (Name(a2) = x) then findValue(Name(y), cleanBind, cleanVal, cleanBind, cleanVal)
-    else findValue(Name(a2), bindings, values, cleanBind, cleanVal)
-  | findValue(Name(a2), x::bindings, y::values, cleanBind, cleanVal) = 
-    if (Name(a2) = x) then y
-    else findValue(Name(a2), bindings, values, cleanBind, cleanVal)
+fun findValue(Name(a2), Name(x)::bindings, y::values) = 
+    if (Name(a2) = Name(x)) then y
+    else findValue(Name(a2), bindings, values)
 ;
 
 fun bindFailure(a1::Name(a2)::stack) = a1::stack
@@ -159,7 +156,7 @@ fun eval(Boolean(x), environment) = ((evalHelper(Boolean(x),hd environment))::(t
   | eval(String(x), environment)  = ((evalHelper(String(x),hd environment))::(tl environment))
   | eval(Name(x), stack::bindings::values::rest)  = 
       if existCheck(Name(x),bindings) then (
-          (evalHelper(findValue(Name(x),bindings,values,bindings,values),stack))::(bindings::rest))
+          (findValue(Name(x),bindings,values)::stack)::(bindings::values::rest))
       else ((evalHelper(Name(x), stack))::(bindings::values::rest))
   | eval(Quit, environment)       = ((evalHelper(Quit,hd environment))::(tl environment))
   | eval(Pop, environment)     = ((evalHelper(Pop,hd environment))::(tl environment))
@@ -280,7 +277,7 @@ fun parseHelper(NONE, inStr) = NONE
  else if (Char.isSpace(ch)) then parseHelper(TextIO.input1(inStr), inStr)
  else NONE;
 
-fun maybePrintPrompt(stack, SOME(0)) = ( printStack(stack); TextIO.print("repl> ") )
+fun maybePrintPrompt(stack::bindings::values::rest, SOME(0)) = ( printStack(stack); TextIO.print("repl> ") )
   | maybePrintPrompt(stack, SOME(_)) = ();
 
 (* Function to parse the next expression on the input stream. *)      
@@ -288,7 +285,7 @@ fun parse(inStr) = parseHelper(TextIO.input1(inStr), inStr);
 
 fun replHelper(inStr, environment) =
 (
-    maybePrintPrompt(hd environment, TextIO.canInput(inStr,1));
+    maybePrintPrompt(environment, TextIO.canInput(inStr,1));
     case (parse(inStr)) of 
        NONE => replHelper(inStr, environment)
      | SOME(Quit) => () 
