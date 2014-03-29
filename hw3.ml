@@ -115,27 +115,41 @@ fun evalHelper(Boolean(x),stack) = Boolean(x)::stack
 fun bindStackHelper(a1, stack) = a1::stack;
 
 (*Helps sort out bindings*)
-fun bindHelper(a1, a2, bindings) = a2::a1::bindings;
+fun bindBindingsHelper(a2, bindings) = a2::bindings;
+
+fun bindValuesHelper(a1, values) = a1::values;
 
 fun existCheck(a2, []) = false
+  | existCheck(Name(a2), x::bindings) = if (Name(a2) = x) then true else existCheck(Name(a2), bindings)
   | existCheck(a2, x::bindings) = if (a2 = x) then true else existCheck(a2, bindings)
-;
-
-fun existNameCheck(a2, []) = false
-  | existNameCheck(Name(a2), x::bindings) = if (a2 = x) then true else existNameCheck(Name(a2), bindings)
 ;
 
 fun nameCheck(a1::Name(a2)::stack) = true
   | nameCheck(_) = false
 ;
 
-fun  findValue(Name(a2), x::y::bindings) = if (Name(a2) = x) then y else findValue(Name(a2), bindings);
+fun checkIfName(Name(a1)) = true;
+
+fun findValue(Name(a2), x::bindings, Name(y)::values, cleanBind, cleanVal) = 
+    if (Name(a2) = x) then findValue(Name(y), cleanBind, cleanVal, cleanBind, cleanVal)
+    else findValue(Name(a2), bindings, values, cleanBind, cleanVal)
+  | findValue(Name(a2), x::bindings, y::values, cleanBind, cleanVal) = 
+    if (Name(a2) = x) then y
+    else findValue(Name(a2), bindings, values, cleanBind, cleanVal)
+;
+
+fun bindFailure(a1::Name(a2)::stack) = a1::stack
+  | bindFailure(Name(a1)::stack) = stack
+  | bindFailure(stack) = stack
+;
 
 (* Evaluates Bind*)
-fun bindFunction(a1::a2::stack, bindings::rest) = 
+fun bindFunction(a1::a2::stack, bindings::values::rest) = 
      if existCheck(a2, bindings)
-         then ((Error::stack)::bindings::rest)
-     else ((bindStackHelper(a1,stack))::(bindHelper(a1,a2,bindings)::rest))
+         then ((evalHelper(Error, stack))::bindings::values::rest)
+     else ((bindStackHelper(a1,stack))::(bindBindingsHelper(a2,bindings)::bindValuesHelper(a1, values)::rest))
+  | bindFunction(a1::stack,bindings::rest) = ((evalHelper(Error, stack))::bindings::rest)
+  | bindFunction(stack,bindings::rest) = ((evalHelper(Error, stack))::bindings::rest)
 ;
 
 (* Evaluates an expression *)
@@ -143,16 +157,17 @@ fun bindFunction(a1::a2::stack, bindings::rest) =
 fun eval(Boolean(x), environment) = ((evalHelper(Boolean(x),hd environment))::(tl environment))
   | eval(Number(x), environment)  = ((evalHelper(Number(x),hd environment))::(tl environment))
   | eval(String(x), environment)  = ((evalHelper(String(x),hd environment))::(tl environment))
-  | eval(Name(x), stack::bindings::rest)  = 
-      if existCheck(Name(x),bindings) then ((evalHelper(findValue(Name(x),bindings),stack))::(bindings::rest))
-      else ((evalHelper(Name(x), stack))::(bindings::rest))
+  | eval(Name(x), stack::bindings::values::rest)  = 
+      if existCheck(Name(x),bindings) then (
+          (evalHelper(findValue(Name(x),bindings,values,bindings,values),stack))::(bindings::rest))
+      else ((evalHelper(Name(x), stack))::(bindings::values::rest))
   | eval(Quit, environment)       = ((evalHelper(Quit,hd environment))::(tl environment))
   | eval(Pop, environment)     = ((evalHelper(Pop,hd environment))::(tl environment))
   | eval(Exc, environment )     = ((evalHelper(Exc,hd environment))::(tl environment))
   | eval(Error, environment)      = ((evalHelper(Error,hd environment))::(tl environment))
   | eval(Bind, stack::bindings)      = 
       if nameCheck(stack) then (bindFunction(stack, bindings))
-      else ((evalHelper(Error, stack))::(bindings))
+      else ((evalHelper(Error, bindFailure(stack)))::(bindings))
   | eval(expr, environment ) = ((evalHelper(expr,hd environment))::(tl environment))
   ;
 
@@ -281,4 +296,4 @@ fun replHelper(inStr, environment) =
 );
 
 
-fun repl() = replHelper(TextIO.stdIn, [[],[]]);
+fun repl() = replHelper(TextIO.stdIn, [[],[],[]]);
