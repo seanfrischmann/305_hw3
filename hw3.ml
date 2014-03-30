@@ -15,7 +15,7 @@ datatype exp =
   | String of string
   | Name of string
   | Error | Quit | Add | Sub | Mul | Div | Rem | Pop | Exc | Neg
-  | And | Or | Not | Equal | LessThan | If | Bind;
+  | And | Or | Not | Equal | LessThan | If | Bind | Load;
 
 (****************************************************************************
  UTILITY FUNCTIONS 
@@ -105,6 +105,7 @@ fun evalHelper(Boolean(x),stack) = Boolean(x)::stack
   | evalHelper(Pop,x::stack) = stack
   | evalHelper(Exc,x::y::stack) = y::x::stack
   | evalHelper(Error,stack) = Error::stack
+  | evalHelper(Load,stack) = String("I was not able to get load to work")::stack
   | evalHelper(expr, stack) = let
             val (v,s) = apply(expr, stack)
       in
@@ -162,6 +163,7 @@ fun eval(Boolean(x), environment) = ((evalHelper(Boolean(x),hd environment))::(t
   | eval(Pop, environment)     = ((evalHelper(Pop,hd environment))::(tl environment))
   | eval(Exc, environment )     = ((evalHelper(Exc,hd environment))::(tl environment))
   | eval(Error, environment)      = ((evalHelper(Error,hd environment))::(tl environment))
+  | eval(Load, environment)      = ((evalHelper(Load,hd environment))::(tl environment))
   | eval(Bind, stack::bindings)      = 
       if nameCheck(stack) then (bindFunction(stack, bindings))
       else ((evalHelper(Error, bindFailure(stack)))::(bindings))
@@ -206,7 +208,7 @@ fun parseString(x, inStr, y) =
 	NONE => SOME(Error)
       | SOME(ch) => 
        if (ch = #"\"") then parseString(x, inStr, (y+1))
-       else if (Char.isAlpha(ch)) then parseString(x^Char.toString(ch), inStr, y)
+       else if not(Char.isSpace(ch)) then parseString(x^Char.toString(ch), inStr, y)
        else if (Char.isSpace(ch)) then
             if (y < 1) then parseString(x^Char.toString(ch), inStr, y)
             else SOME(String(x))
@@ -259,9 +261,21 @@ fun parsePrimitive(x, inStr) =
 	       else if (x = "lessThan") then SOME(LessThan)
 	       else if (x = "if") then SOME(If)
 	       else if (x = "bind") then SOME(Bind)
-               else if (x = "quit") then SOME(Quit)
+	       else if (x = "load") then SOME(Load)
+          else if (x = "quit") then SOME(Quit)
 	       else SOME(Name(x))
        else SOME(Error);
+
+fun parseFunction(inStr, y) =
+    case (TextIO.input1(inStr)) of
+         NONE => SOME(Error)
+       | SOME(ch) =>
+            if (ch = #"}") then parseFunction(inStr, 1)
+            else if (Char.isSpace(ch)) then
+                if (y = 0) then parseFunction(inStr, 0)
+                else SOME(String("I did not get functions working"))
+            else parseFunction(inStr, 0)
+;
 
 (* A recursive helper function for the parse function, which reads
    a character from the input stream and determines what more
@@ -273,6 +287,7 @@ fun parseHelper(NONE, inStr) = NONE
  else if (ch = #"-")        then parseNegativeNumber(inStr)
  else if (ch = #":")        then parseBooleanOrError(":", inStr)
  else if (ch = #"\"")        then parseString("", inStr, 0)
+ else if (ch = #"{")        then parseFunction(inStr, 0)
  else if (Char.isAlpha(ch)) then parsePrimitive(Char.toString(ch), inStr)
  else if (Char.isSpace(ch)) then parseHelper(TextIO.input1(inStr), inStr)
  else NONE;
