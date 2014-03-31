@@ -192,13 +192,13 @@ fun parseNegativeNumber(inStr) =
 
 fun parseBoolean(x, inStr) = 
     case (TextIO.input1(inStr)) of
-	NONE => SOME(Error)
+	     NONE => SOME(Error)
       | SOME(ch) => 
-	    if (Char.isAlpha(ch) orelse ch = #":") then parseBoolean(x^Char.toString(ch),inStr)
-       else if (Char.isSpace(ch))
-	       then if (x = ":true:")  then SOME(Boolean(true))
-	       else if (x = ":false:") then SOME(Boolean(false))
-	       else SOME(Error)
+	      if (Char.isAlpha(ch) orelse ch = #":") then parseBoolean(x^Char.toString(ch),inStr)
+         else if (Char.isSpace(ch))
+	         then if (x = ":true:")  then SOME(Boolean(true))
+	              else if (x = ":false:") then SOME(Boolean(false))
+	      else SOME(Error)
        else SOME(Error);
 
 (* Function to parse a string  *)
@@ -232,10 +232,11 @@ fun parseError(x, inStr) =
 
 fun parseBooleanOrError(x, inStr) = 
     case (TextIO.input1(inStr)) of
-	NONE => SOME(Error)
+	     NONE => SOME(Error)
       | SOME(ch) => 
-	    if (ch = #"e")                  then parseError(x^Char.toString(ch),inStr)
-       else if (ch = #"t" orelse ch = #"f") then parseBoolean(x^Char.toString(ch),inStr)
+	    if (ch = #"e")  then parseError(x^Char.toString(ch),inStr)
+       else if (ch = #"t") then parseBoolean(x^Char.toString(ch),inStr)
+       else if (ch = #"f") then parseBoolean(x^Char.toString(ch),inStr)
        else SOME(Error);
 
 (* Function to parse a primitive  *)
