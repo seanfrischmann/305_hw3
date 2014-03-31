@@ -20,51 +20,53 @@
  * New Feature
  */
 typedef struct Map{
-	 struct Type *key;
+	 char *key;
 	 struct Type * value;
 	 struct Map *next;
 }map;
 
-map * addToMap(map *list, struct Type *key, struct Type *value){
-				printf("broken2 \n");
+typedef struct Realmap{
+	 struct Map * start;
+}realmap;
+
+void addToMap(realmap *list, char *key, struct Type *value){
 	map *temp;
 	temp = (struct Map *) (malloc(sizeof(struct Map)));
-	(*temp).key = key;
-	(*temp).value = value;
-	(*temp).next = list;
-				printf("broken3 \n");
-	return temp;
+	temp->key = key;
+	temp->value = value;
+	temp->next = list->start;
+	list->start = temp;
 }
 
-int findInMap(map *list, struct Type *key){
-	 map *current = list;
-	 printf("test 4 \n");
-	 if(current == NULL){ return 0;}
-	 printf("test 5 \n");
-	 if(current->key == key) { return 1;}
-	 else if(current->next == NULL) { return 0;}
-	 else{ return findInMap(current->next, key);}
+int findInMap(realmap *list, char *key){
+	 realmap *current = list;
+	 while(current->start != NULL){
+		if(strcmp(current->start->key, key)==0) {return TRUE;}
+			current->start = current->start->next;
+	 }
+	 return FALSE;
 }
 
 struct Type * makeError() {
-  struct Type * x = (struct Type *) (malloc(sizeof(struct Type)));;
-  (*x).type = ERROR;
-  (*x).value.error = ERRORKIND;
-  return x;
+	 struct Type * x = (struct Type *) (malloc(sizeof(struct Type)));;
+	 (*x).type = ERROR;
+	 (*x).value.error = ERRORKIND;
+	 return x;
 }
 
-struct Type * findValue(map *list, struct Type *key){
-	 map * current = list;
-	 struct Type * temp = (struct Type *) (malloc(sizeof(struct Type)));;
-	 while (current != NULL){
-		  if(current->key == key) { 
-				if((current->value->type == NAME)&&(findInMap(list, current->value))){
-					 return findValue(list, current->value);
-				}
-				temp = current->value;
-				return temp;
+struct Type * findValue(realmap *list, char *key){
+	 realmap * current = list;
+	 struct Type * temp;
+	 while (current->start != NULL){
+		  if(strcmp(current->start->key, key)==0) { 
+				if((current->start->value->type == NAME)&&(findInMap(list, current->start->value->value.name))){
+					current->start->key = current->start->value->value.name;
+					continue;
+				}else{
+					 temp = current->start->value;
+				}return temp;
 		  }
-		  current = current->next;
+		  current->start = current->start->next;
 	 }
 	 return makeError();
 }
@@ -85,37 +87,35 @@ struct Type * makeBoolean(int b) {
 /*
  * New Feature
  */
-struct Type * makeName(char *b, map *bindings) {
-    struct Type * px = (struct Type *) (malloc(sizeof(struct Type)));;
-	 char * temp = (char *) (malloc(strlen(b)));
-	 strcpy(temp,b);
-    (*px).type = NAME;
-    (*px).value.string = temp;
-	 printf("test 1 \n");
-	 if(findInMap(bindings, px) == 1){
-		  printf("test 2 \n");
-		  px = findValue(bindings, px);
+struct Type * makeName(char *b, realmap *bindings) {
+	 if(findInMap(bindings, b) == TRUE){
+		 return findValue(bindings, b);
 	 }
-	 printf("test 3 \n");
-    return px;
+	 struct Type * px;
+	 px = (struct Type *) (malloc(sizeof(struct Type)));;
+	 char * temp = (char *) (malloc(strlen(b)+1));
+	 strncpy(temp,b, strlen(b)+1);
+	 (*px).type = NAME;
+	 (*px).value.string = temp;
+	 return px;
 }
 
 /*
  * New Feature
  */
 struct Type * makeString(char * b) {
-    struct Type * px = (struct Type *) (malloc(sizeof(struct Type)));;
+	 struct Type * px = (struct Type *) (malloc(sizeof(struct Type)));;
 	 char * temp = (char *) (malloc(strlen(b)));
-	 int i = 1;
+	 int i;
 	 int j = 0;
 	 int length = strlen(b)-1;
-	 for(i;i<length;i++){
+	 for(i=1;i<length;i++){
 		  temp[j] = b[i];
 		  j = j+1;
 	 }
-    (*px).type = STRING;
-    (*px).value.string = temp;
-    return px;
+	 (*px).type = STRING;
+	 (*px).value.string = temp;
+	 return px;
 }
 
 int isBoolean(struct Type * t) { return (*t).type == BOOLEAN; }
@@ -130,6 +130,11 @@ int isName(struct Type * t) { return (*t).type == NAME; }
  * New Feature
  */
 int isString(struct Type * t) { return (*t).type == STRING; }
+int isLetter(char * token) { 
+	 if(((token[0]-0)>64)&&((token[0]-0)<91)){return TRUE;}
+	 else if(((token[0]-0)>96)&&((token[0]-0)<123)) {return TRUE;}
+	 else{return FALSE;}
+}
 
 /*   Pop top value from stack	*/
 void popStack(struct Node *stack){
@@ -346,38 +351,36 @@ void applyBinary(struct Type * (*f)(), struct Node * stack) {
   }
 }
 
-void applyBindings(struct Node * stack, map *bindings) {
-  struct Type * x = pop(stack);
-  struct Type * y = pop(stack);
-  if (y != NULL && x != NULL) {
-    struct Type * result;
-	 if ((*y).type == NAME){
-		  if(findInMap(bindings, y) == 1){
-				result = makeError();
+void applyBindings(struct Node * stack, realmap *bindings) {
+	 struct Type * x = pop(stack);
+	 struct Type * y = pop(stack);
+	 if (y != NULL && x != NULL) {
+		struct Type * result;
+		if ((*y).type == NAME){
+			if(findInMap(bindings, y->value.name) == TRUE){
+					 result = makeError();
+			}else{
+				addToMap(bindings, y->value.name, x);
+				result = x;
+			}
 		  }else{
-				printf("broken \n");
-			bindings = addToMap(bindings, y, x);
-				printf("broken4 \n");
-			result = x;
-		  }
-	 }else{
-		  result = makeError();
+			result = makeError();
 	 }
-    if ((*result).type == ERROR) {
-      push(stack,y);
-      push(stack,x);
-    }
-    push(stack,result);
-  }
-  else if (y == NULL && x == NULL) {
-    // stack was empty
-    push(stack,makeError());
-  }
-  else { 
-    // stack had ONE item on it
-    push(stack,x);
-    push(stack,makeError());
-  }
+	 if ((*result).type == ERROR) {
+		push(stack,y);
+		push(stack,x);
+	 }
+	 push(stack,result);
+	 }
+	 else if (y == NULL && x == NULL) {
+	 // stack was empty
+	 push(stack,makeError());
+	 }
+	 else { 
+	 // stack had ONE item on it
+	 push(stack,x);
+	 push(stack,makeError());
+	 }
 }
 
 void applyUnary(struct Type * (*f)(), struct Node * stack) {
@@ -394,64 +397,63 @@ void applyUnary(struct Type * (*f)(), struct Node * stack) {
   }
 }
 
-struct Node * eval(char * token,struct Node *stack, map *bindings){
-       if(strcmp(token,":true:")  == 0) { push(stack,makeBoolean(TRUE)); }
-  else if(token[0] == '"') { push(stack,makeString(token)); }
-  else if(strcmp(token,":false:") == 0) { push(stack,makeBoolean(FALSE)); }
-  else if(strcmp(token,":error:") == 0) { push(stack,makeError()); }
-  else if(strcmp(token,"equal")== 0)      { applyBinary(equal, stack); }
-  else if(strcmp(token,"lessThan")== 0)      { applyBinary(lessThan, stack); }
-  else if(strcmp(token,"and")== 0)      { applyBinary(and, stack); }
-  else if(strcmp(token,"or")== 0)      { applyBinary(or, stack); }
-  else if(strcmp(token,"not")== 0)      { applyUnary(not, stack); }
-  else if(strcmp(token,"add")== 0)      { applyBinary(add, stack); }
-  else if(strcmp(token,"sub")== 0)      { applyBinary(sub, stack); }
-  else if(strcmp(token,"mul")== 0)      { applyBinary(mul, stack); }
-  else if(strcmp(token,"div")== 0)      { applyBinary(divide, stack); }
-  else if(strcmp(token,"rem")== 0)      { applyBinary(rem, stack); }
-  else if(strcmp(token,"neg")== 0)      { applyUnary(negate, stack); }
-  else if(strcmp(token,"pop")== 0)      { popStack(stack); }
-  else if(strcmp(token,"exc")== 0)      { excStack(stack); }
-  else if(strcmp(token,"bind")== 0)      { applyBindings(stack, bindings); }
-  else if(strcmp(token,"quit")== 0)     { exit(0); }
-  else if(strspn(token, "0123456789-") == strlen(token)) { push(stack,makeNumber(atoi(token))); }
-  else if(((token[0]-0)>64)&&((token[0]-0)<91)) { push(stack,makeName(token, bindings)); }
-  else if(((token[0]-0)>96)&&((token[0]-0)<123)) { push(stack,makeName(token, bindings)); }
-  else { push(stack,makeError()); }
-  return stack;
+struct Node * eval(char * token,struct Node *stack, realmap *bindings){
+	 if(strcmp(token,":true:")  == 0) { push(stack,makeBoolean(TRUE)); }
+	 else if(token[0] == '"') { push(stack,makeString(token)); }
+	 else if(strcmp(token,":false:") == 0) { push(stack,makeBoolean(FALSE)); }
+	 else if(strcmp(token,":error:") == 0) { push(stack,makeError()); }
+	 else if(strcmp(token,"equal")== 0)      { applyBinary(equal, stack); }
+	 else if(strcmp(token,"lessThan")== 0)      { applyBinary(lessThan, stack); }
+	 else if(strcmp(token,"and")== 0)      { applyBinary(and, stack); }
+	 else if(strcmp(token,"or")== 0)      { applyBinary(or, stack); }
+	 else if(strcmp(token,"not")== 0)      { applyUnary(not, stack); }
+	 else if(strcmp(token,"add")== 0)      { applyBinary(add, stack); }
+	 else if(strcmp(token,"sub")== 0)      { applyBinary(sub, stack); }
+	 else if(strcmp(token,"mul")== 0)      { applyBinary(mul, stack); }
+	 else if(strcmp(token,"div")== 0)      { applyBinary(divide, stack); }
+	 else if(strcmp(token,"rem")== 0)      { applyBinary(rem, stack); }
+	 else if(strcmp(token,"neg")== 0)      { applyUnary(negate, stack); }
+	 else if(strcmp(token,"pop")== 0)      { popStack(stack); }
+	 else if(strcmp(token,"exc")== 0)      { excStack(stack); }
+	 else if(strcmp(token,"bind")== 0)      { applyBindings(stack, bindings); }
+	 else if(strcmp(token,"quit")== 0)     { exit(0); }
+	 else if(strspn(token, "0123456789-") == strlen(token)) { push(stack,makeNumber(atoi(token))); }
+	 else if(isLetter(token) == TRUE) { push(stack,makeName(token, bindings)); }
+	 else { push(stack,makeError()); }
+	 return stack;
 }
 
 /*   Main repl function	  */
 
 void repl(){
-	
-  char * buffer;
-  char * token;
-  char storeBuffer[BUFFER_LENGTH];
-  size_t buffLength = 0;
-  struct Node *stack;
-  stack = makeEmptyList(); // make a stack to hold tokens
-  map *bindings;
-  bindings = (map *) (malloc(sizeof(map)));
-  bindings = NULL;
 
-	
-  while(1){
-    printf("repl>");
-    getline(&buffer,&buffLength,stdin);
-    strcpy(storeBuffer,buffer);
-    storeBuffer[strlen(storeBuffer)-1] = '\0';
+	 char * buffer;
+	 char * token;
+	 char storeBuffer[BUFFER_LENGTH];
+	 size_t buffLength = 0;
+	 struct Node *stack;
+	 stack = makeEmptyList(); // make a stack to hold tokens
+	 realmap *bindings;
+	 bindings = (realmap *) (malloc(sizeof(realmap)));
+	 bindings->start = NULL;
+
+
+	 while(1){
+	 printf("repl>");
+	 getline(&buffer,&buffLength,stdin);
+	 strcpy(storeBuffer,buffer);
+	 storeBuffer[strlen(storeBuffer)-1] = '\0';
 		
-    /* get the first token */
-    token = strtok(storeBuffer, " \n\t");
+	 /* get the first token */
+	 token = strtok(storeBuffer, " \n\t");
 
-    /* walk through other tokens */
-    while( token != NULL ) {
-      stack = eval(token,stack, bindings);
-      token = strtok(NULL, " \n\t");
-    }		 
-    printStack(stack);
-  }
+	 /* walk through other tokens */
+	 while( token != NULL ) {
+		stack = eval(token,stack, bindings);
+		token = strtok(NULL, " \n\t");
+	 }		 
+	 printStack(stack);
+	 }
 }
 
 /*   Main Method   */
