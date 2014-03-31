@@ -16,30 +16,42 @@
 
 
 /*
+ * Data for bindings
+ * New Feature
+ */
+typedef struct Data{
+	 char *key;
+	 struct Type * value;
+	 struct Data *next;
+}data_points;
+
+/*
  * Map for bindings
  * New Feature
  */
 typedef struct Map{
-	 char *key;
-	 struct Type * value;
-	 struct Map *next;
+	 struct Data * start;
 }map;
 
-typedef struct Realmap{
-	 struct Map * start;
-}realmap;
-
-void addToMap(realmap *list, char *key, struct Type *value){
-	map *temp;
-	temp = (struct Map *) (malloc(sizeof(struct Map)));
+/*
+ * Add bindings to Map
+ * New Feature
+ */
+void addToMap(map *list, char *key, struct Type *value){
+	data_points *temp;
+	temp = (struct Data *) (malloc(sizeof(struct Data)));
 	temp->key = key;
 	temp->value = value;
 	temp->next = list->start;
 	list->start = temp;
 }
 
-int findInMap(realmap *list, char *key){
-	 map *current = list->start;
+/*
+ * Find Key
+ * New Feature
+ */
+int findInMap(map *list, char *key){
+	 data_points *current = list->start;
 	 while(current != NULL){
 		if(strcmp(current->key, key)==0) {return TRUE;}
 			current = current->next;
@@ -54,8 +66,12 @@ struct Type * makeError() {
 	 return x;
 }
 
-struct Type * findValue(realmap *list, char *key){
-	 map * current = list->start;
+/*
+ * Find Value
+ * New Feature
+ */
+struct Type * findValue(map *list, char *key){
+	 data_points * current = list->start;
 	 struct Type * temp;
 	 while (current != NULL){
 		  if(strcmp(current->key, key)==0) { 
@@ -86,9 +102,11 @@ struct Type * makeBoolean(int b) {
     return px;
 }
 /*
+ * Creates Name
+ *   if name is binded uses value instead
  * New Feature
  */
-struct Type * makeName(char *b, realmap *bindings) {
+struct Type * makeName(char *b, map *bindings) {
 	 if(findInMap(bindings, b) == TRUE){
 		 return findValue(bindings, b);
 	 }
@@ -102,6 +120,7 @@ struct Type * makeName(char *b, realmap *bindings) {
 }
 
 /*
+ * Creates string
  * New Feature
  */
 struct Type * makeString(char * b) {
@@ -124,13 +143,20 @@ int isError(struct Type * t)   { return (*t).type == ERROR; }
 int isNumber(struct Type * t)  { return (*t).type == NUMBER; }
 int valueOf(struct Type * t)   { return (*t).value.number; }
 /*
+ * Checks if type is name
  * New Feature
  */
 int isName(struct Type * t) { return (*t).type == NAME; }
 /*
+ * Checks if type is string
  * New Feature
  */
 int isString(struct Type * t) { return (*t).type == STRING; }
+
+/*
+ * Checks if token is a letter
+ * New Feature
+ */
 int isLetter(char * token) { 
 	 if(((token[0]-0)>64)&&((token[0]-0)<91)){return TRUE;}
 	 else if(((token[0]-0)>96)&&((token[0]-0)<123)) {return TRUE;}
@@ -352,7 +378,42 @@ void applyBinary(struct Type * (*f)(), struct Node * stack) {
   }
 }
 
-void applyBindings(struct Node * stack, realmap *bindings) {
+void applyIf(struct Node * stack) {
+	struct Type * last = pop(stack);
+	struct Type * middle = pop(stack);
+	struct Type * first = pop(stack);
+	if (last != NULL && middle != NULL && first != NULL) {
+		if (last->type != BOOLEAN) {
+			push(stack,first);
+			push(stack,middle);
+			push(stack,makeError());
+		}else if (last->value.bool == TRUE){
+			push(stack,first);
+		}else{
+			push(stack,middle);
+		}
+	}
+	else if (last == NULL && middle == NULL && first == NULL) {
+		// stack was empty
+		push(stack,makeError());
+	}
+	else if (middle == NULL && first == NULL){ 
+		// stack had ONE item on it
+		push(stack,last);
+		push(stack,makeError());
+	}else{
+		push(stack,middle);
+		push(stack,last);
+		push(stack,makeError());
+	}
+
+}
+
+/*
+ * Binds to values from the stack
+ * New Feature
+ */
+void applyBindings(struct Node * stack, map *bindings) {
 	 struct Type * x = pop(stack);
 	 struct Type * y = pop(stack);
 	 if (y != NULL && x != NULL) {
@@ -398,7 +459,10 @@ void applyUnary(struct Type * (*f)(), struct Node * stack) {
   }
 }
 
-struct Node * eval(char * token,struct Node *stack, realmap *bindings){
+/*
+ * Updated to incorporate new features
+ */
+struct Node * eval(char * token,struct Node *stack, map *bindings){
 	 if(strcmp(token,":true:")  == 0) { push(stack,makeBoolean(TRUE)); }
 	 else if(token[0] == '"') { push(stack,makeString(token)); }
 	 else if(strcmp(token,":false:") == 0) { push(stack,makeBoolean(FALSE)); }
@@ -417,6 +481,41 @@ struct Node * eval(char * token,struct Node *stack, realmap *bindings){
 	 else if(strcmp(token,"pop")== 0)      { popStack(stack); }
 	 else if(strcmp(token,"exc")== 0)      { excStack(stack); }
 	 else if(strcmp(token,"bind")== 0)      { applyBindings(stack, bindings); }
+	 else if(strcmp(token,"if")== 0)      { applyIf(stack); }
+	 else if(strcmp(token,"load")== 0)      { 
+		 while (1){
+			struct Type * x = pop(stack);
+			char y[80];
+			int i = 0;
+			if(x->type != STRING){
+				push(stack,x);
+				push(stack,makeError());
+				break;
+			}
+			 FILE *opened_file;
+			 opened_file =fopen(x->value.string,"r");
+			 if(opened_file == NULL){
+				push(stack,x);
+				push(stack,makeError());
+				break;
+			 }
+			 int c;
+			 while((c = fgetc(opened_file)) != EOF){
+				 if(c == ' ' || c == '\n'){
+					char z[i+1];
+					strncpy(z,y,i+1);
+					eval(z,stack,bindings);
+					memset(&y,0,sizeof(y));
+					i=0;
+				 }else{
+					y[i] = c;
+					i = i + 1;
+				 }
+			 }
+			 push(stack,makeBoolean(TRUE));
+			 break;
+		 }
+	 }
 	 else if(strcmp(token,"quit")== 0)     { exit(0); }
 	 else if(strspn(token, "0123456789-") == strlen(token)) { push(stack,makeNumber(atoi(token))); }
 	 else if(isLetter(token) == TRUE) { push(stack,makeName(token, bindings)); }
@@ -424,7 +523,10 @@ struct Node * eval(char * token,struct Node *stack, realmap *bindings){
 	 return stack;
 }
 
-/*   Main repl function	  */
+/*
+ * Main repl function
+ * updated to incorporate new features
+ */
 
 void repl(){
 
@@ -434,8 +536,8 @@ void repl(){
 	 size_t buffLength = 0;
 	 struct Node *stack;
 	 stack = makeEmptyList(); // make a stack to hold tokens
-	 realmap *bindings;
-	 bindings = (realmap *) (malloc(sizeof(realmap)));
+	 map *bindings;  // make map to hold bindings
+	 bindings = (map *) (malloc(sizeof(map)));
 	 bindings->start = NULL;
 
 
