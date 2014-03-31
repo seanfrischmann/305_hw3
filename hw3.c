@@ -39,10 +39,10 @@ void addToMap(realmap *list, char *key, struct Type *value){
 }
 
 int findInMap(realmap *list, char *key){
-	 realmap *current = list;
-	 while(current->start != NULL){
-		if(strcmp(current->start->key, key)==0) {return TRUE;}
-			current->start = current->start->next;
+	 map *current = list->start;
+	 while(current != NULL){
+		if(strcmp(current->key, key)==0) {return TRUE;}
+			current = current->next;
 	 }
 	 return FALSE;
 }
@@ -55,18 +55,19 @@ struct Type * makeError() {
 }
 
 struct Type * findValue(realmap *list, char *key){
-	 realmap * current = list;
+	 map * current = list->start;
 	 struct Type * temp;
-	 while (current->start != NULL){
-		  if(strcmp(current->start->key, key)==0) { 
-				if((current->start->value->type == NAME)&&(findInMap(list, current->start->value->value.name))){
-					current->start->key = current->start->value->value.name;
+	 while (current != NULL){
+		  if(strcmp(current->key, key)==0) { 
+				if((current->value->type == NAME)&&(findInMap(list, current->value->value.name))){
+					key = current->value->value.name;
+					current = list->start;
 					continue;
 				}else{
-					 temp = current->start->value;
+					 temp = current->value;
 				}return temp;
 		  }
-		  current->start = current->start->next;
+		  current = current->next;
 	 }
 	 return makeError();
 }
