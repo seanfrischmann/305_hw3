@@ -1,2 +1,2 @@
-4 5 add :true:
+4 5 add :true: 
 a 10 bind b 5 bind c a b add bind :false:
